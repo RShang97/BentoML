@@ -141,6 +141,7 @@ class CorkDispatcher:
             Job
         ] = collections.deque()  # TODO(bojiang): maxlen
         self._sema = shared_sema if shared_sema else NonBlockSema(1)
+        self.num_jobs_in_queue = 0
 
     def shutdown(self):
         if self._controller is not None:
@@ -431,6 +432,7 @@ class CorkDispatcher:
         future = self._loop.create_future()
         input_info = Job(now, data, future)
         self._queue.append(input_info)
+        self.num_jobs_in_queue += data.sample.batch_size
         async with self._wake_event:
             self._wake_event.notify_all()
         return await future
@@ -469,4 +471,5 @@ class CorkDispatcher:
                     fut = input_info.future
                     if not fut.done():
                         fut.cancel()
+                    self.num_jobs_in_queue -= input_info.data.sample.batch_size
             self._sema.release()
